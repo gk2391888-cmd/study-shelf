@@ -13,29 +13,20 @@ import {
   doc,
   query,
   where,
-  orderBy,
   limit,
   serverTimestamp,
-  updateDoc
+  updateDoc,
+  setDoc
 } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 
 import { auth, googleProvider, db } from "./firebase-config.js";
 
 const ADMIN_EMAIL = "gaurav.kumar.mail1109@gmail.com";
+const CLOUD_NAME = "rjjxdzso";
+const UPLOAD_PRESET = "studyshelf_public";
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 const $ = (id) => document.getElementById(id);
-
-const loginBtn = $("loginBtn");
-const heroLoginBtn = $("heroLoginBtn");
-const logoutBtn = $("logoutBtn");
-const accountSection = $("accountSection");
-const adminSection = $("adminSection");
-const studentName = $("studentName");
-const studentEmail = $("studentEmail");
-const statusMessage = $("statusMessage");
-const resourceList = $("resourceList");
-const toast = $("toast");
-const paymentSection = $("paymentSection");
 
 let currentUser = null;
 let selectedAssignment = null;
@@ -46,13 +37,14 @@ let paymentSettings = { upiId: "", qrUrl: "" };
 $("year").textContent = new Date().getFullYear();
 
 function showToast(message) {
+  const toast = $("toast");
   toast.textContent = message;
   toast.classList.add("show");
   setTimeout(() => toast.classList.remove("show"), 3500);
 }
 
 function setStatus(message) {
-  statusMessage.textContent = message;
+  $("statusMessage").textContent = message;
 }
 
 function isAdmin(user = currentUser) {
@@ -63,39 +55,12 @@ function isAdmin(user = currentUser) {
   );
 }
 
-function makeElement(tag, className, text) {
+function makeElement(tag, className = "", text = "") {
   const element = document.createElement(tag);
   if (className) element.className = className;
-  if (text !== undefined) element.textContent = text;
+  if (text !== "") element.textContent = text;
   return element;
 }
-
-async function loginWithGoogle() {
-  try {
-    loginBtn.disabled = true;
-    heroLoginBtn.disabled = true;
-    await signInWithPopup(auth, googleProvider);
-  } catch (error) {
-    console.error("Login error:", error);
-    showToast(error.message || "Google sign-in failed.");
-  } finally {
-    loginBtn.disabled = false;
-    heroLoginBtn.disabled = false;
-  }
-}
-
-loginBtn.addEventListener("click", loginWithGoogle);
-heroLoginBtn.addEventListener("click", loginWithGoogle);
-
-logoutBtn.addEventListener("click", async () => {
-  try {
-    await signOut(auth);
-    showToast("Signed out successfully.");
-  } catch (error) {
-    console.error(error);
-    showToast("Sign out failed.");
-  }
-});
 
 function resetElement(element) {
   element.replaceChildren();
@@ -106,132 +71,238 @@ function renderEmpty(container, message) {
   container.append(makeElement("p", "empty-state", message));
 }
 
+function setBusy(button, busy, label) {
+  if (!button.dataset.originalLabel) {
+    button.dataset.originalLabel = button.textContent;
+  }
+  button.disabled = busy;
+  button.textContent = busy ? label : button.dataset.originalLabel;
+}
+
+async function loginWithGoogle() {
+  try {
+    $("loginBtn").disabled = true;
+    $("heroLoginBtn").disabled = true;
+    await signInWithPopup(auth, googleProvider);
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "Google login failed.");
+  } finally {
+    $("loginBtn").disabled = false;
+    $("heroLoginBtn").disabled = false;
+  }
+}
+
+$("loginBtn").addEventListener("click", loginWithGoogle);
+$("heroLoginBtn").addEventListener("click", loginWithGoogle);
+
+$("logoutBtn").addEventListener("click", async () => {
+  try {
+    await signOut(auth);
+    showToast("Signed out.");
+  } catch (error) {
+    console.error(error);
+    showToast("Sign out failed.");
+  }
+});
+
+async function uploadToCloudinary(file, button) {
+  if (!file) throw new Error("Please select a file.");
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error("Maximum file size is 10 MB.");
+  }
+
+  const allowed = [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+  ];
+
+  if (!allowed.includes(file.type)) {
+    throw new Error("Only PDF, JPG, PNG and WebP files are supported.");
+  }
+
+  const form = new FormData();
+  form.append("file", file);
+  form.append("upload_preset", UPLOAD_PRESET);
+
+  setBusy(button, true, "Uploading…");
+
+  try {
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
+      { method: "POST", body: form }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.secure_url) {
+      console.error("Cloudinary response:", result);
+      throw new Error(result.error?.message || "Cloudinary upload failed.");
+    }
+
+    return result;
+  } finally {
+    setBusy(button, false);
+  }
+}
+
 async function loadPaymentSettings() {
   try {
-    const snap = await getDoc(doc(db, "settings", "payments"));
-    if (snap.exists()) {
-      const data = snap.data();
-      paymentSettings = {
-        upiId: typeof data.upiId === "string" ? data.upiId : "",
-        qrUrl: typeof data.qrUrl === "string" ? data.qrUrl : ""
-      };
-    }
+    const snapshot = await getDoc(doc(db, "settings", "payments"));
+
+    paymentSettings = snapshot.exists()
+      ? {
+          upiId: snapshot.data().upiId || "",
+          qrUrl: snapshot.data().qrUrl || ""
+        }
+      : { upiId: "", qrUrl: "" };
   } catch (error) {
-    console.error("Payment settings could not be loaded:", error);
+    console.error("Payment settings:", error);
+    showToast("Payment settings could not load. Check Firestore Rules.");
   }
 
   renderQr();
 }
 
 function renderQr() {
-  const image = $("paymentQrImage");
+  const qr = $("paymentQrImage");
   const container = $("paymentQrContainer");
   const placeholder = $("paymentQrPlaceholder");
 
   if (paymentSettings.qrUrl) {
-    image.src = paymentSettings.qrUrl;
+    qr.src = paymentSettings.qrUrl;
     container.classList.remove("hidden");
     placeholder.classList.add("hidden");
+    qr.onerror = () => {
+      container.classList.add("hidden");
+      placeholder.classList.remove("hidden");
+    };
   } else {
-    image.removeAttribute("src");
+    qr.removeAttribute("src");
     container.classList.add("hidden");
     placeholder.classList.remove("hidden");
   }
 
   if (isAdmin()) {
-    $("upiId").value = paymentSettings.upiId || "";
+    $("upiId").value = paymentSettings.upiId;
     if (paymentSettings.qrUrl) {
       $("currentQrImage").src = paymentSettings.qrUrl;
       $("currentQrPreview").classList.remove("hidden");
+    } else {
+      $("currentQrPreview").classList.add("hidden");
     }
+  }
+
+  const help = $("paymentQrPlaceholder").querySelector("p");
+  if (help && paymentSettings.upiId) {
+    help.textContent = `Pay using the displayed QR. UPI ID: ${paymentSettings.upiId}`;
   }
 }
 
 async function loadAssignments() {
   try {
-    const snap = await getDocs(
+    const snapshot = await getDocs(
       query(collection(db, "assignments"), limit(100))
     );
 
-    assignmentsCache = snap.docs.map((item) => ({
+    assignmentsCache = snapshot.docs.map((item) => ({
       id: item.id,
       ...item.data()
     }));
 
-    renderAssignments();
     $("resourceCount").textContent = String(assignmentsCache.length);
+    renderAssignments();
   } catch (error) {
-    console.error("Assignments load error:", error);
-    renderEmpty(resourceList, "Could not load assignments. Check Firestore Rules.");
-    setStatus("Assignments could not be loaded. Check the browser console and Firestore Rules.");
+    console.error("Assignments:", error);
+    renderEmpty($("resourceList"), "Assignments could not load. Check Firestore Rules.");
   }
+}
+
+function approvedFor(assignmentId) {
+  return paymentsCache.some(
+    (payment) =>
+      payment.assignmentId === assignmentId &&
+      payment.status === "approved"
+  );
 }
 
 function renderAssignments() {
-  resetElement(resourceList);
+  const container = $("resourceList");
+  resetElement(container);
 
   if (!assignmentsCache.length) {
-    renderEmpty(resourceList, "No assignments published yet.");
+    renderEmpty(container, "No assignments published yet.");
     return;
   }
 
-  for (const item of assignmentsCache) {
+  for (const assignment of assignmentsCache) {
     const card = makeElement("article", "resource-item");
-    card.append(makeElement("h3", "", item.title || "Untitled assignment"));
-    card.append(makeElement("p", "", item.subject || "General"));
-    if (item.description) {
-      card.append(makeElement("p", "", item.description));
+    card.append(makeElement("h3", "", assignment.title || "Assignment"));
+    card.append(makeElement("p", "", assignment.subject || "General"));
+
+    if (assignment.description) {
+      card.append(makeElement("p", "", assignment.description));
     }
 
-    const price = Number(item.price);
     card.append(makeElement(
       "p",
       "resource-price",
-      Number.isFinite(price) ? `Price: ₹${price}` : "Price unavailable"
+      `Price: ₹${Number(assignment.price) || 0}`
     ));
 
-    const button = makeElement("button", "btn btn-primary", "Pay / View status");
-    button.type = "button";
-    button.addEventListener("click", () => openPayment(item));
-    card.append(button);
+    if (approvedFor(assignment.id) && assignment.fileUrl) {
+      const download = makeElement("a", "btn btn-primary", "Open assignment");
+      download.href = assignment.fileUrl;
+      download.target = "_blank";
+      download.rel = "noopener noreferrer";
+      card.append(download);
+    } else {
+      const button = makeElement("button", "btn btn-primary", "Pay / View status");
+      button.type = "button";
+      button.addEventListener("click", () => openPayment(assignment));
+      card.append(button);
+    }
 
-    resourceList.append(card);
+    container.append(card);
   }
 }
 
-function openPayment(item) {
-  selectedAssignment = item;
+function openPayment(assignment) {
+  selectedAssignment = assignment;
   $("selectedAssignmentText").textContent =
-    `${item.title || "Assignment"} · ${item.subject || "General"}`;
-  $("paymentAmount").textContent = `₹${Number(item.price) || 0}`;
-  paymentSection.classList.remove("hidden");
-  paymentSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    `${assignment.title || "Assignment"} · ${assignment.subject || "General"}`;
+  $("paymentAmount").textContent = `₹${Number(assignment.price) || 0}`;
+  $("paymentSection").classList.remove("hidden");
   renderQr();
+  $("paymentSection").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 async function loadStudentPayments() {
-  try {
-    const snap = await getDocs(
-      query(
-        collection(db, "payments"),
-        where("userId", "==", currentUser.uid),
-        limit(100)
-      )
-    );
+  if (!currentUser) return;
 
-    paymentsCache = snap.docs.map((item) => ({
+  try {
+    const snapshot = await getDocs(query(
+      collection(db, "payments"),
+      where("userId", "==", currentUser.uid),
+      limit(100)
+    ));
+
+    paymentsCache = snapshot.docs.map((item) => ({
       id: item.id,
       ...item.data()
     }));
 
     $("pendingCount").textContent = String(
-      paymentsCache.filter((p) => p.status === "pending").length
+      paymentsCache.filter((payment) => payment.status === "pending").length
     );
 
     renderStudentPayments();
+    renderAssignments();
   } catch (error) {
-    console.error("Payment history error:", error);
-    renderEmpty($("studentPaymentList"), "Payment history could not be loaded.");
+    console.error("Payment history:", error);
+    renderEmpty($("studentPaymentList"), "Payment history could not load.");
   }
 }
 
@@ -240,24 +311,32 @@ function renderStudentPayments() {
   resetElement(container);
 
   if (!paymentsCache.length) {
-    renderEmpty(container, "You have not submitted any payment requests yet.");
+    renderEmpty(container, "No payment requests yet.");
     return;
   }
 
   for (const payment of paymentsCache) {
     const card = makeElement("article", "resource-item");
-    card.append(makeElement("h3", "", payment.assignmentTitle || "Assignment payment"));
-    card.append(makeElement("p", "", `Transaction ID: ${payment.transactionId || "—"}`));
+    card.append(makeElement("h3", "", payment.assignmentTitle || "Assignment"));
+    card.append(makeElement("p", "", `UTR: ${payment.transactionId || "—"}`));
     card.append(makeElement("p", "", `Amount: ₹${Number(payment.amount) || 0}`));
     card.append(makeElement("p", "", `Status: ${payment.status || "pending"}`));
 
-    if (payment.status === "approved") {
-      card.append(makeElement(
-        "p",
-        "",
-        "Payment approved. File access still depends on secure file delivery being configured."
-      ));
+    const assignment = assignmentsCache.find(
+      (item) => item.id === payment.assignmentId
+    );
+
+    if (
+      payment.status === "approved" &&
+      assignment?.fileUrl
+    ) {
+      const link = makeElement("a", "btn btn-primary", "Open assignment");
+      link.href = assignment.fileUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      card.append(link);
     }
+
     container.append(card);
   }
 }
@@ -266,7 +345,7 @@ async function submitPayment(event) {
   event.preventDefault();
 
   if (!currentUser || !selectedAssignment) {
-    showToast("Please select an assignment first.");
+    showToast("Select an assignment first.");
     return;
   }
 
@@ -279,13 +358,15 @@ async function submitPayment(event) {
   }
 
   if (!Number.isFinite(amount) || amount <= 0) {
-    showToast("This assignment has an invalid price.");
+    showToast("Invalid assignment price.");
     return;
   }
 
-  $("submitPaymentBtn").disabled = true;
+  const button = $("submitPaymentBtn");
 
   try {
+    setBusy(button, true, "Submitting…");
+
     await addDoc(collection(db, "payments"), {
       userId: currentUser.uid,
       assignmentId: selectedAssignment.id,
@@ -298,13 +379,13 @@ async function submitPayment(event) {
 
     $("paymentForm").reset();
     showToast("Payment request submitted for verification.");
-    setStatus("Payment request submitted. Your resource will remain locked until the administrator verifies the payment.");
+    setStatus("Your payment is pending manual verification.");
     await loadStudentPayments();
   } catch (error) {
-    console.error("Payment submission error:", error);
-    showToast("Could not submit payment. Check Firestore Rules.");
+    console.error("Payment submission:", error);
+    showToast("Payment submission failed. Check Firestore Rules.");
   } finally {
-    $("submitPaymentBtn").disabled = false;
+    setBusy(button, false);
   }
 }
 
@@ -317,11 +398,11 @@ async function loadAdminPayments() {
   resetElement(container);
 
   try {
-    const snap = await getDocs(
+    const snapshot = await getDocs(
       query(collection(db, "payments"), limit(100))
     );
 
-    const requests = snap.docs.map((item) => ({
+    const requests = snapshot.docs.map((item) => ({
       id: item.id,
       ...item.data()
     }));
@@ -333,9 +414,9 @@ async function loadAdminPayments() {
 
     for (const payment of requests) {
       const card = makeElement("article", "resource-item");
-      card.append(makeElement("h3", "", payment.assignmentTitle || "Assignment payment"));
+      card.append(makeElement("h3", "", payment.assignmentTitle || "Assignment"));
       card.append(makeElement("p", "", `Student UID: ${payment.userId || "—"}`));
-      card.append(makeElement("p", "", `Transaction ID: ${payment.transactionId || "—"}`));
+      card.append(makeElement("p", "", `UTR: ${payment.transactionId || "—"}`));
       card.append(makeElement("p", "", `Amount: ₹${Number(payment.amount) || 0}`));
       card.append(makeElement("p", "", `Status: ${payment.status || "pending"}`));
 
@@ -354,8 +435,8 @@ async function loadAdminPayments() {
       container.append(card);
     }
   } catch (error) {
-    console.error("Admin payments error:", error);
-    renderEmpty(container, "Could not load requests. Check Firestore Rules.");
+    console.error("Admin payment list:", error);
+    renderEmpty(container, "Could not load payments. Check Firestore Rules.");
   }
 }
 
@@ -367,7 +448,7 @@ async function reviewPayment(paymentId, status) {
 
   const confirmed = window.confirm(
     status === "approved"
-      ? "Have you verified this payment in your UPI app or bank statement?"
+      ? "Verify that this payment has actually arrived in your UPI/bank account. Approve?"
       : "Reject this payment request?"
   );
 
@@ -382,9 +463,10 @@ async function reviewPayment(paymentId, status) {
 
     showToast(`Payment ${status}.`);
     await loadAdminPayments();
+    await loadStudentPayments();
   } catch (error) {
-    console.error("Payment review error:", error);
-    showToast("Could not update payment. Check Firestore Rules.");
+    console.error("Review payment:", error);
+    showToast("Could not update status. Check Firestore Rules.");
   }
 }
 
@@ -415,7 +497,41 @@ $("assignmentForm").addEventListener("submit", async (event) => {
     return;
   }
 
-  showToast("Assignment publishing is disabled until secure file upload and delivery are configured.");
+  const title = $("assignmentTitle").value.trim();
+  const subject = $("assignmentSubject").value.trim();
+  const description = $("assignmentDescription").value.trim();
+  const price = Number($("assignmentPrice").value);
+  const file = $("assignmentFile").files[0];
+  const button = $("publishAssignmentBtn");
+
+  if (!title || !subject || !file || !Number.isFinite(price) || price <= 0) {
+    showToast("Complete all required fields.");
+    return;
+  }
+
+  try {
+    const uploaded = await uploadToCloudinary(file, button);
+
+    await addDoc(collection(db, "assignments"), {
+      title,
+      subject,
+      description,
+      price,
+      fileUrl: uploaded.secure_url,
+      filePublicId: uploaded.public_id,
+      fileType: uploaded.resource_type,
+      fileFormat: uploaded.format || "",
+      createdBy: currentUser.uid,
+      createdAt: serverTimestamp()
+    });
+
+    $("assignmentForm").reset();
+    showToast("Assignment published.");
+    await loadAssignments();
+  } catch (error) {
+    console.error("Assignment publishing:", error);
+    showToast(error.message || "Could not publish assignment.");
+  }
 });
 
 $("paymentSettingsForm").addEventListener("submit", async (event) => {
@@ -426,59 +542,95 @@ $("paymentSettingsForm").addEventListener("submit", async (event) => {
     return;
   }
 
-  showToast("QR/UPI settings are not saved yet. A protected admin-only settings write path must be configured first.");
-});
+  const upiId = $("upiId").value.trim();
+  const file = $("qrFile").files[0];
+  const button = event.currentTarget.querySelector('button[type="submit"]');
 
-async function startDashboard(user) {
-  currentUser = user;
-  const admin = isAdmin(user);
-
-  loginBtn.textContent = "My Account";
-  headerUserToggle(user);
-  studentName.textContent = user.displayName || "Student";
-  studentEmail.textContent = user.email || "";
-  accountSection.classList.remove("hidden");
-  heroLoginBtn.classList.add("hidden");
-  paymentSection.classList.add("hidden");
-  adminSection.classList.toggle("hidden", !admin);
-
-  setStatus(admin
-    ? "Signed in as administrator. Verify every payment before approving it."
-    : "Login successful. All assignments are paid resources; access requires verified payment.");
-
-  await loadPaymentSettings();
-  await loadAssignments();
-  await loadStudentPayments();
-
-  if (admin) {
-    await loadAdminPayments();
+  if (upiId && !/^[\w.-]{2,256}@[a-zA-Z0-9.-]{2,64}$/.test(upiId)) {
+    showToast("Enter a valid UPI ID.");
+    return;
   }
-}
+
+  try {
+    setBusy(button, true, "Saving…");
+
+    let qrUrl = paymentSettings.qrUrl;
+
+    if (file) {
+      const uploaded = await uploadToCloudinary(file, button);
+      qrUrl = uploaded.secure_url;
+    }
+
+    if (!upiId && !qrUrl) {
+      showToast("Enter a UPI ID or upload a QR image.");
+      return;
+    }
+
+    await setDoc(doc(db, "settings", "payments"), {
+      upiId,
+      qrUrl,
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUser.email
+    });
+
+    paymentSettings = { upiId, qrUrl };
+    renderQr();
+    $("qrFile").value = "";
+    showToast("Payment settings saved.");
+  } catch (error) {
+    console.error("Saving payment settings:", error);
+    showToast(error.message || "Could not save settings. Check Firestore Rules.");
+  } finally {
+    setBusy(button, false);
+  }
+});
 
 function headerUserToggle(user) {
   $("headerUser").textContent = user.displayName || user.email || "Signed in";
   $("headerUser").classList.remove("hidden");
 }
 
+async function startDashboard(user) {
+  currentUser = user;
+
+  $("loginBtn").textContent = "My Account";
+  headerUserToggle(user);
+  $("studentName").textContent = user.displayName || "Student";
+  $("studentEmail").textContent = user.email || "";
+  $("accountSection").classList.remove("hidden");
+  $("heroLoginBtn").classList.add("hidden");
+  $("paymentSection").classList.add("hidden");
+  $("adminSection").classList.toggle("hidden", !isAdmin(user));
+
+  setStatus(isAdmin(user)
+    ? "Admin signed in. Verify payments before approving."
+    : "Welcome! All assignments are paid resources.");
+
+  await loadPaymentSettings();
+  await loadAssignments();
+  await loadStudentPayments();
+
+  if (isAdmin(user)) await loadAdminPayments();
+}
+
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
 
   if (!user) {
-    loginBtn.textContent = "Sign in with Google";
+    $("loginBtn").textContent = "Sign in with Google";
     $("headerUser").classList.add("hidden");
-    accountSection.classList.add("hidden");
-    heroLoginBtn.classList.remove("hidden");
-    adminSection.classList.add("hidden");
-    paymentSection.classList.add("hidden");
-    resetElement(resourceList);
+    $("accountSection").classList.add("hidden");
+    $("heroLoginBtn").classList.remove("hidden");
+    $("adminSection").classList.add("hidden");
+    $("paymentSection").classList.add("hidden");
     return;
   }
 
   try {
     await startDashboard(user);
   } catch (error) {
-    console.error("Dashboard initialization error:", error);
-    setStatus("Your account is signed in, but the dashboard could not finish loading. Check Firestore Rules.");
+    console.error("Dashboard startup:", error);
+    setStatus("Dashboard could not finish loading. Check Firestore Rules.");
     showToast("Dashboard initialization failed.");
   }
 });
