@@ -1,0 +1,73 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101426">
+  <meta name="description" content="StudyShelf - Your Study. Your Success.">
+  <title>StudyShelf | Your Study. Your Success.</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#">
+      <span class="brand-icon">S</span>
+      <span>StudyShelf</span>
+    </a>
+    <button id="loginBtn" class="btn btn-primary">Sign in with Google</button>
+  </header>
+
+  <main>
+    <section class="hero">
+      <span class="eyebrow">YOUR LEARNING SPACE</span>
+      <h1>Your Study.<br><span>Your Success.</span></h1>
+      <p>Assignments, notes and study resources — all in one place.</p>
+      <button id="heroLoginBtn" class="btn btn-primary">
+        Get Started with Google
+      </button>
+    </section>
+
+    <section class="features">
+      <article class="feature-card">
+        <div class="feature-icon">📚</div>
+        <h2>Study Materials</h2>
+        <p>Find assignments, notes and useful learning resources.</p>
+      </article>
+      <article class="feature-card">
+        <div class="feature-icon">🔐</div>
+        <h2>Student Account</h2>
+        <p>Sign in to access your student dashboard.</p>
+      </article>
+      <article class="feature-card">
+        <div class="feature-icon">✅</div>
+        <h2>Verified Access</h2>
+        <p>Paid resources unlock only after payment approval.</p>
+      </article>
+    </section>
+
+    <section id="accountSection" class="account-section hidden">
+      <div class="section-heading">
+        <span class="eyebrow">STUDENT AREA</span>
+        <h2>Welcome, <span id="studentName">Student</span></h2>
+        <p id="studentEmail"></p>
+      </div>
+      <div id="statusMessage" class="status-message">
+        Your account is ready. Study resources will appear here.
+      </div>
+      <div id="resourceList" class="resource-list"></div>
+      <button id="logoutBtn" class="btn btn-outline">Sign out</button>
+    </section>
+  </main>
+
+  <footer>
+    <p>© <span id="year"></span> StudyShelf. All rights reserved.</p>
+    <p>Your Study. Your Success.</p>
+  </footer>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
+```
