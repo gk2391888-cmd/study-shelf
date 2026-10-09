@@ -1,60 +1,185 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101426">
-  <meta name="description" content="StudyShelf - Your Study. Your Success.">
+  <meta name="description" content="StudyShelf — Your Study. Your Success.">
   <title>StudyShelf | Your Study. Your Success.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="#">
+    <a class="brand" href="#home" aria-label="StudyShelf home">
       <span class="brand-icon">S</span>
       <span>StudyShelf</span>
     </a>
-    <button id="loginBtn" class="btn btn-primary">Sign in with Google</button>
+    <div class="header-actions">
+      <span id="headerUser" class="header-user hidden"></span>
+      <button id="loginBtn" class="btn btn-primary">Sign in with Google</button>
+    </div>
   </header>
 
   <main>
-    <section class="hero">
+    <section id="home" class="hero">
       <span class="eyebrow">YOUR LEARNING SPACE</span>
       <h1>Your Study.<br><span>Your Success.</span></h1>
-      <p>Assignments, notes and study resources — all in one place.</p>
-      <button id="heroLoginBtn" class="btn btn-primary">
-        Get Started with Google
-      </button>
+      <p>Quality assignments, notes and study resources in one place.</p>
+      <button id="heroLoginBtn" class="btn btn-primary">Get Started with Google</button>
+      <div class="hero-note">Secure account · Verified payments · Study resources</div>
     </section>
 
-    <section class="features">
+    <section class="features" aria-label="StudyShelf features">
       <article class="feature-card">
         <div class="feature-icon">📚</div>
         <h2>Study Materials</h2>
-        <p>Find assignments, notes and useful learning resources.</p>
+        <p>Browse assignments, notes and useful study resources.</p>
       </article>
       <article class="feature-card">
         <div class="feature-icon">🔐</div>
-        <h2>Student Account</h2>
-        <p>Sign in to access your student dashboard.</p>
+        <h2>Verified Access</h2>
+        <p>Paid resources are available after payment approval.</p>
       </article>
       <article class="feature-card">
-        <div class="feature-icon">✅</div>
-        <h2>Verified Access</h2>
-        <p>Paid resources unlock only after payment approval.</p>
+        <div class="feature-icon">⚡</div>
+        <h2>Simple Payments</h2>
+        <p>Pay using UPI and submit your transaction reference.</p>
       </article>
     </section>
 
     <section id="accountSection" class="account-section hidden">
       <div class="section-heading">
-        <span class="eyebrow">STUDENT AREA</span>
+        <span class="eyebrow">STUDENT DASHBOARD</span>
         <h2>Welcome, <span id="studentName">Student</span></h2>
         <p id="studentEmail"></p>
       </div>
-      <div id="statusMessage" class="status-message">
-        Your account is ready. Study resources will appear here.
+
+      <div class="dashboard-stats">
+        <article class="stat-card">
+          <span class="stat-label">Available resources</span>
+          <strong id="resourceCount">0</strong>
+        </article>
+        <article class="stat-card">
+          <span class="stat-label">Pending payments</span>
+          <strong id="pendingCount">0</strong>
+        </article>
       </div>
-      <div id="resourceList" class="resource-list"></div>
+
+      <div id="statusMessage" class="status-message" role="status">
+        Loading your dashboard…
+      </div>
+
+      <section id="adminSection" class="admin-section hidden">
+        <div class="section-heading">
+          <span class="eyebrow">ADMIN WORKSPACE</span>
+          <h2>Manage StudyShelf</h2>
+          <p>Create paid resources and review student payment requests.</p>
+        </div>
+
+        <div class="admin-tabs">
+          <button type="button" class="btn btn-outline" id="showUploadBtn">Add assignment</button>
+          <button type="button" class="btn btn-outline" id="showPaymentsBtn">Payment requests</button>
+          <button type="button" class="btn btn-outline" id="showSettingsBtn">Payment settings</button>
+        </div>
+
+        <div id="adminUploadPanel" class="admin-panel">
+          <h3>Add paid assignment</h3>
+          <form id="assignmentForm">
+            <label for="assignmentTitle">Assignment title</label>
+            <input id="assignmentTitle" name="title" type="text" maxlength="120" required placeholder="e.g. Mathematics Assignment 1">
+
+            <label for="assignmentSubject">Subject</label>
+            <input id="assignmentSubject" name="subject" type="text" maxlength="100" required placeholder="e.g. Mathematics">
+
+            <label for="assignmentDescription">Description</label>
+            <textarea id="assignmentDescription" name="description" maxlength="1000" rows="3" placeholder="What does this resource contain?"></textarea>
+
+            <label for="assignmentPrice">Price (INR)</label>
+            <input id="assignmentPrice" name="price" type="number" min="1" max="100000" step="1" required placeholder="e.g. 49">
+
+            <label for="assignmentFile">PDF or image</label>
+            <input id="assignmentFile" name="file" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" required>
+            <p class="field-help">Supported formats: PDF, JPG, PNG and WebP. Maximum 10 MB.</p>
+
+            <button class="btn btn-primary" id="publishAssignmentBtn" type="submit">Publish assignment</button>
+          </form>
+          <p class="field-help">Only the authorized administrator should be able to publish. Secure file delivery must be configured before uploading paid files.</p>
+        </div>
+
+        <div id="adminPaymentsPanel" class="admin-panel hidden">
+          <h3>Payment requests</h3>
+          <p class="field-help">Check the transaction in your UPI app or bank statement before approving.</p>
+          <div id="adminPaymentList" class="resource-list"></div>
+        </div>
+
+        <div id="adminSettingsPanel" class="admin-panel hidden">
+          <h3>Payment settings</h3>
+          <form id="paymentSettingsForm">
+            <label for="upiId">UPI ID</label>
+            <input id="upiId" name="upiId" type="text" maxlength="120" placeholder="yourname@upi">
+            <label for="qrFile">Upload payment QR image</label>
+            <input id="qrFile" name="qrFile" type="file" accept="image/png,image/jpeg,image/webp">
+            <p class="field-help">QR and UPI settings need a trusted, admin-only save path. Do not upload private files through an unrestricted public upload preset.</p>
+            <button class="btn btn-primary" type="submit">Save payment settings</button>
+          </form>
+          <div id="currentQrPreview" class="qr-preview hidden">
+            <img id="currentQrImage" alt="Current payment QR code">
+          </div>
+        </div>
+      </section>
+
+      <section class="resources-section">
+        <div class="section-heading">
+          <span class="eyebrow">RESOURCE LIBRARY</span>
+          <h2>Paid assignments</h2>
+          <p>Choose a resource to view its payment status.</p>
+        </div>
+        <div id="resourceList" class="resource-list">
+          <p class="empty-state">Assignments will appear here when available.</p>
+        </div>
+      </section>
+
+      <section id="paymentSection" class="payment-section hidden">
+        <div class="section-heading">
+          <span class="eyebrow">UPI PAYMENT</span>
+          <h2>Complete your payment</h2>
+          <p id="selectedAssignmentText">Selected assignment</p>
+        </div>
+
+        <div class="payment-card">
+          <div class="payment-amount">
+            <span>Amount to pay</span>
+            <strong id="paymentAmount">₹0</strong>
+          </div>
+
+          <div id="paymentQrPlaceholder" class="qr-placeholder">
+            <span>▦</span>
+            <p>Payment QR will appear here after the administrator configures it.</p>
+          </div>
+          <div id="paymentQrContainer" class="qr-preview hidden">
+            <img id="paymentQrImage" alt="UPI payment QR code">
+          </div>
+
+          <p class="field-help">Scan with your UPI app. Verify the recipient name and amount before paying.</p>
+
+          <form id="paymentForm">
+            <label for="transactionId">Transaction ID / UTR</label>
+            <input id="transactionId" name="transactionId" type="text" minlength="6" maxlength="100" required autocomplete="off" placeholder="Enter your transaction reference">
+            <button class="btn btn-primary" id="submitPaymentBtn" type="submit">Submit for verification</button>
+          </form>
+          <p class="field-help">Submitting a transaction reference does not automatically confirm payment. Access is granted only after the administrator verifies the payment.</p>
+        </div>
+      </section>
+
+      <section class="resources-section">
+        <h2>Your payment history</h2>
+        <div id="studentPaymentList" class="resource-list"></div>
+      </section>
+
       <button id="logoutBtn" class="btn btn-outline">Sign out</button>
     </section>
   </main>
@@ -64,9 +189,7 @@
     <p>Your Study. Your Success.</p>
   </footer>
 
-  <div id="toast" class="toast" role="status"></div>
-
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script type="module" src="app.js"></script>
 </body>
 </html>
-```
