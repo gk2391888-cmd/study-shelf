@@ -4,10 +4,7 @@ signOut,
 onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
 
-import {
-auth,
-googleProvider
-} from "./firebase-config.js";
+import { auth, googleProvider } from "./firebase-config.js";
 
 const loginBtn = document.getElementById("loginBtn");
 const heroLoginBtn = document.getElementById("heroLoginBtn");
@@ -32,7 +29,7 @@ try {
 await signInWithPopup(auth, googleProvider);
 } catch (error) {
 console.error("Google sign-in error:", error);
-showToast(error.message || "Login nahi ho paya.");
+showToast(error.message || "Google login failed.");
 }
 }
 
@@ -42,10 +39,9 @@ heroLoginBtn.addEventListener("click", loginWithGoogle);
 logoutBtn.addEventListener("click", async () => {
 try {
 await signOut(auth);
-showToast("You have signed out.");
 } catch (error) {
 console.error(error);
-showToast("Sign out nahi ho paya.");
+showToast("Sign out failed.");
 }
 });
 
@@ -59,7 +55,7 @@ heroLoginBtn.classList.add("hidden");
 
 ```
 statusMessage.textContent =
-  "Google login successful! Payment and assignment access will be configured next.";
+  "Login successful! Payment and assignment access will be configured next.";
 
 resourceList.replaceChildren();
 
@@ -71,7 +67,7 @@ title.textContent = "Your StudyShelf account is ready";
 
 const description = document.createElement("p");
 description.textContent =
-  "Your study resources will appear here after the secure access system is configured.";
+  "Study resources will appear here after the secure access system is configured.";
 
 card.append(title, description);
 resourceList.append(card);
